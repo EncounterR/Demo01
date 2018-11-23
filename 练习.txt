@@ -1,0 +1,216 @@
+
+4	关联查询
+
+4.1	商品订单数据模型
+ 
+
+4.2	一对一查询
+案例：查询所有订单信息，关联查询下单用户信息。
+
+注意：因为一个订单信息只会是一个人下的订单，所以从查询订单信息出发关联查询用户信息为一对一查询。如果从用户信息出发查询用户下的订单信息则为一对多查询，因为一个用户可以下多个订单。
+
+4.2.1	方法一：
+使用resultType，定义订单信息po类，此po类中包括了订单信息和用户信息：
+
+4.2.1.1	Sql语句：
+
+SELECT 
+  orders.*,
+  user.username,
+  userss.address
+FROM
+  orders,
+  user 
+WHERE orders.user_id = user.id
+
+
+4.2.1.2	定义po类
+Po类中应该包括上边sql查询出来的所有字段，如下：
+
+public class OrdersCustom extends Orders {
+
+	private String username;// 用户名称
+	private String address;// 用户地址
+get/set。。。。
+
+OrdersCustom类继承Orders类后OrdersCustom类包括了Orders类的所有字段，只需要定义用户的信息字段即可。
+
+4.2.1.3	Mapper.xml
+
+<!-- 查询所有订单信息 -->
+	<select id="findOrdersList" resultType="com.oaec.mybatis.po.OrdersCustom">
+	SELECT
+	orders.*,
+	user.username,
+	user.address
+	FROM
+	orders,	user
+	WHERE orders.user_id = user.id 
+	</select>
+
+4.2.1.4	Mapper接口：
+public List<OrdersCustom> findOrdersList() throws Exception;
+
+4.2.1.5	测试：
+
+Public void testfindOrdersList()throws Exception{
+		//获取session
+		SqlSession session = sqlSessionFactory.openSession();
+		//获限mapper接口实例
+		UserMapper userMapper = session.getMapper(UserMapper.class);
+		//查询订单信息
+		List<OrdersCustom> list = userMapper.findOrdersList();
+		System.out.println(list);
+		//关闭session
+		session.close();
+	}
+
+4.2.1.6	小结：
+	定义专门的po类作为输出类型，其中定义了sql查询结果集所有的字段。此方法较为简单，企业中使用普遍。
+4.2.2	方法二：
+使用resultMap，定义专门的resultMap用于映射一对一查询结果。
+
+4.2.2.1	Sql语句：
+
+SELECT 
+  orders.*,
+  user.username,
+  user.address
+FROM
+  orders,
+  user 
+WHERE orders.user_id = user.id
+4.2.2.2	定义po类
+	在Orders类中加入User属性，user属性中用于存储关联查询的用户信息，因为订单关联查询用户是一对一关系，所以这里使用单个User对象存储关联查询的用户信息。
+ 
+4.2.2.3	Mapper.xml
+<!-- 查询订单关联用户信息使用resultmap -->
+	<resultMap type="com.oaec.po.Orders" id="orderUserResultMap">
+		<id column="id" property="id"/>
+		<result column="user_id" property="userId"/>
+		<result column="number" property="number"/>
+		<result column="createtime" property="createtime"/>
+		<result column="note" property="note"/>
+		<!-- 一对一关联映射 -->
+		<!-- 
+		property:Orders对象的user属性
+		javaType：user属性对应 的类型
+		 -->
+		<association property="user" javaType="com.oaec.po.User">
+			<!-- column:user表的主键对应的列  property：user对象中id属性-->
+			<id column="user_id" property="id"/>
+			<result column="username" property="username"/>
+			<result column="address" property="address"/>
+		</association>
+	</resultMap>
+	<select id="findOrdersWithUserResultMap" resultMap="orderUserResultMap">
+		SELECT
+			o.id,
+			o.user_id,
+			o.number,
+			o.createtime,
+			o.note,
+			u.username,
+			u.address
+		FROM
+			orders o
+		JOIN `user` u ON u.id = o.user_id
+	</select>
+
+这里resultMap指定orderUserResultMap。
+
+association：表示进行关联查询单条记录
+property：表示关联查询的结果存储在com.oaec.mybatis.po.Orders的user属性中
+javaType：表示关联查询的结果类型
+<id property="id" column="user_id"/>：查询结果的user_id列对应关联对象的id属性，这里是<id />表示user_id是关联查询对象的唯一标识。
+<result property="username" column="username"/>：查询结果的username列对应关联对象的username属性。
+
+4.2.2.4	Mapper接口：
+public List<Orders> findOrdersListResultMap() throws Exception;
+
+4.2.2.5	测试：
+
+Public void testfindOrdersListResultMap()throws Exception{
+		//获取session
+		SqlSession session = sqlSessionFactory.openSession();
+		//获限mapper接口实例
+		UserMapper userMapper = session.getMapper(UserMapper.class);
+		//查询订单信息
+		List<Orders> list = userMapper.findOrdersList2();
+		System.out.println(list);
+		//关闭session
+		session.close();
+	}
+
+4.2.2.6	小结：
+使用association完成关联查询，将关联查询信息映射到pojo对象中。
+
+4.3	一对多查询
+
+案例：查询所有用户信息及用户关联的订单信息。
+
+用户信息和订单信息为一对多关系。
+
+使用resultMap实现如下：
+
+4.3.1	Sql语句：
+
+SELECT
+	u.*, o.id oid,
+	o.number,
+	o.createtime,
+	o.note
+FROM
+	`user` u
+LEFT JOIN orders o ON u.id = o.user_id
+4.3.2	定义po类
+在User类中加入List<Orders> orders属性
+ 
+
+4.3.3	Mapper.xml
+<resultMap type="com.oaec.po.user" id="userOrderResultMap">
+		<!-- 用户信息映射 -->
+		<id property="id" column="id"/>
+		<result property="username" column="username"/>
+		<result property="birthday" column="birthday"/>
+		<result property="sex" column="sex"/>
+		<result property="address" column="address"/>
+		<!-- 一对多关联映射 -->
+		<collection property="orders" ofType="com.oaec.po.Orders">
+			<id property="id" column="oid"/>	
+		      <!--用户id已经在user对象中存在，此处可以不设置-->
+			<!-- <result property="userId" column="id"/> -->
+			<result property="number" column="number"/>
+			<result property="createtime" column="createtime"/>
+			<result property="note" column="note"/>
+		</collection>
+	</resultMap>
+	<select id="getUserOrderList" resultMap="userOrderResultMap">
+		SELECT
+		u.*, o.id oid,
+		o.number,
+		o.createtime,
+		o.note
+		FROM
+		`user` u
+		LEFT JOIN orders o ON u.id = o.user_id
+	</select>
+	
+
+collection部分定义了用户关联的订单信息。表示关联查询结果集
+property="orders"：关联查询的结果集存储在User对象的上哪个属性。
+ofType="orders"：指定关联查询的结果集中的对象类型即List中的对象类型。此处可以使用别名，也可以使用全限定名。
+<id />及<result/>的意义同一对一查询。
+4.3.4	Mapper接口：
+List<User> getUserOrderList();
+4.3.5	测试
+@Test
+	public void getUserOrderList() {
+		SqlSession session = sqlSessionFactory.openSession();
+		UserMapper userMapper = session.getMapper(UserMapper.class);
+		List<User> result = userMapper.getUserOrderList();
+		for (User user : result) {
+			System.out.println(user);
+		}
+		session.close();
+	}
